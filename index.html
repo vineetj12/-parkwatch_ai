@@ -1172,12 +1172,14 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.heat/0.2.0/leaflet-heat.js"></script>
   <!-- Chart.js -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <!-- Config: generated at build time from env variables -->
+  <script src="config.js"></script>
 
   <script>
     // ── Deployment Configuration ─────────────────────────────────────────────
-    // Set to your Render backend URL when deployed (e.g. "https://parkwatch-backend.onrender.com")
-    // Keep empty or null to load parkwatch_data.json locally from the same directory
-    const BACKEND_URL = ""; 
+    // BACKEND_URL is read from the env variable set in Vercel/Render dashboard.
+    // If empty, falls back to loading parkwatch_data.json from the same directory.
+    const BACKEND_URL = (window.__ENV__ && window.__ENV__.BACKEND_URL) || ""; 
 
     // ── Global State ────────────────────────────────────────────────────────
     let globalData = null;

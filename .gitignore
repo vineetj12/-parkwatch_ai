@@ -38,3 +38,6 @@ ENV/
 # dataset.csv is 110MB and exceeds GitHub's 100MB file limit
 # Enable Git LFS or use an external URL if you want to push it to Git.
 dataset.csv
+
+# Generated at build time from env variables
+config.js
