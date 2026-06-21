@@ -1,0 +1,1847 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ParkWatch AI — Bengaluru Parking Congestion Intelligence</title>
+  
+  <!-- Leaflet CSS -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
+  <!-- Google Fonts: Inter -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Outfit:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  
+  <style>
+    /* ── Custom Design System (Vanilla CSS) ─────────────────────────────────── */
+    :root {
+      --bg-base: #030712;
+      --bg-surface: rgba(17, 24, 39, 0.7);
+      --bg-card: rgba(31, 41, 55, 0.45);
+      --bg-card-hover: rgba(55, 65, 81, 0.6);
+      --border-color: rgba(255, 255, 255, 0.08);
+      --border-color-active: rgba(255, 255, 255, 0.2);
+      
+      --text-primary: #f9fafb;
+      --text-secondary: #9ca3af;
+      --text-muted: #6b7280;
+      
+      --color-critical: #ef4444;
+      --color-high: #f97316;
+      --color-medium: #eab308;
+      --color-low: #06b6d4;
+      
+      --glow-critical: rgba(239, 68, 68, 0.25);
+      --glow-high: rgba(249, 115, 22, 0.25);
+      --glow-medium: rgba(234, 179, 8, 0.25);
+      --glow-low: rgba(6, 182, 212, 0.25);
+      
+      --accent: #6366f1;
+      --accent-hover: #4f46e5;
+    }
+    
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+    
+    body {
+      font-family: 'Inter', sans-serif;
+      background-color: var(--bg-base);
+      color: var(--text-primary);
+      height: 100vh;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+    }
+    
+    h1, h2, h3, .font-display {
+      font-family: 'Outfit', sans-serif;
+    }
+    
+    /* Scrollbar Styling */
+    ::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+    ::-webkit-scrollbar-track {
+      background: transparent;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: rgba(255, 255, 255, 0.15);
+      border-radius: 4px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: rgba(255, 255, 255, 0.3);
+    }
+    
+    /* ── Layout ────────────────────────────────────────────────────────────── */
+    header {
+      background: linear-gradient(180deg, rgba(3, 7, 18, 1) 0%, rgba(3, 7, 18, 0.8) 100%);
+      border-bottom: 1px solid var(--border-color);
+      padding: 1rem 1.5rem;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      z-index: 100;
+    }
+    
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+    }
+    
+    .brand-logo {
+      background: linear-gradient(135deg, #818cf8, #4f46e5);
+      width: 32px;
+      height: 32px;
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 800;
+      color: white;
+      box-shadow: 0 0 15px rgba(99, 102, 241, 0.4);
+    }
+    
+    .brand-title h1 {
+      font-size: 1.25rem;
+      font-weight: 700;
+      letter-spacing: -0.025em;
+      background: linear-gradient(to right, #ffffff, #9ca3af);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+    
+    .brand-title p {
+      font-size: 0.75rem;
+      color: var(--text-secondary);
+    }
+    
+    .header-actions {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+    }
+    
+    .map-toggle-btn {
+      background: var(--bg-card);
+      border: 1px solid var(--border-color);
+      color: var(--text-primary);
+      padding: 0.5rem 1rem;
+      border-radius: 8px;
+      font-size: 0.85rem;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      transition: all 0.2s ease;
+    }
+    
+    .map-toggle-btn:hover {
+      background: var(--bg-card-hover);
+      border-color: var(--border-color-active);
+    }
+    
+    .map-toggle-btn.active {
+      background: var(--accent);
+      border-color: var(--accent);
+      box-shadow: 0 0 10px rgba(99, 102, 241, 0.3);
+    }
+    
+    main {
+      flex: 1;
+      display: grid;
+      grid-template-columns: 360px 1fr 420px;
+      overflow: hidden;
+      position: relative;
+    }
+    
+    /* ── Panels ────────────────────────────────────────────────────────────── */
+    .sidebar {
+      background: var(--bg-surface);
+      backdrop-filter: blur(16px);
+      border-right: 1px solid var(--border-color);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      z-index: 10;
+    }
+    
+    .detail-panel {
+      background: var(--bg-surface);
+      backdrop-filter: blur(16px);
+      border-left: 1px solid var(--border-color);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      z-index: 10;
+    }
+    
+    .map-container {
+      width: 100%;
+      height: 100%;
+      position: relative;
+      background: #0d0f12;
+    }
+    
+    #map {
+      width: 100%;
+      height: 100%;
+    }
+    
+    /* ── Sidebar Elements ──────────────────────────────────────────────────── */
+    .search-filter-section {
+      padding: 1.25rem;
+      border-bottom: 1px solid var(--border-color);
+      display: flex;
+      flex-direction: column;
+      gap: 0.75rem;
+    }
+    
+    .search-container {
+      position: relative;
+    }
+    
+    .search-input {
+      width: 100%;
+      background: rgba(0, 0, 0, 0.3);
+      border: 1px solid var(--border-color);
+      padding: 0.6rem 1rem 0.6rem 2.25rem;
+      border-radius: 8px;
+      color: white;
+      font-size: 0.875rem;
+      transition: border-color 0.2s;
+    }
+    
+    .search-input:focus {
+      outline: none;
+      border-color: var(--accent);
+    }
+    
+    .search-icon {
+      position: absolute;
+      left: 0.75rem;
+      top: 50%;
+      transform: translateY(-50%);
+      color: var(--text-muted);
+      pointer-events: none;
+    }
+    
+    .filter-dropdown {
+      width: 100%;
+      background: rgba(0, 0, 0, 0.3);
+      border: 1px solid var(--border-color);
+      padding: 0.6rem 1rem;
+      border-radius: 8px;
+      color: white;
+      font-size: 0.875rem;
+      cursor: pointer;
+      appearance: none;
+      background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%239ca3af' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6 9 12 15 18 9'%3e%3c/polyline%3e%3c/svg%3e");
+      background-repeat: no-repeat;
+      background-position: right 0.75rem center;
+      background-size: 1rem;
+    }
+    
+    .filter-dropdown:focus {
+      outline: none;
+      border-color: var(--accent);
+    }
+    
+    .severity-filters {
+      display: flex;
+      gap: 0.25rem;
+    }
+    
+    .severity-btn {
+      flex: 1;
+      background: var(--bg-card);
+      border: 1px solid var(--border-color);
+      color: var(--text-secondary);
+      padding: 0.4rem 0;
+      font-size: 0.75rem;
+      font-weight: 600;
+      border-radius: 6px;
+      cursor: pointer;
+      text-align: center;
+      transition: all 0.2s ease;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+    
+    .severity-btn:hover {
+      background: var(--bg-card-hover);
+      color: white;
+    }
+    
+    .severity-btn.active[data-tier="ALL"] { border-color: var(--accent); color: white; background: rgba(99, 102, 241, 0.15); }
+    .severity-btn.active[data-tier="CRITICAL"] { border-color: var(--color-critical); color: var(--color-critical); background: rgba(239, 68, 68, 0.1); }
+    .severity-btn.active[data-tier="HIGH"] { border-color: var(--color-high); color: var(--color-high); background: rgba(249, 115, 22, 0.1); }
+    .severity-btn.active[data-tier="MEDIUM"] { border-color: var(--color-medium); color: var(--color-medium); background: rgba(234, 179, 8, 0.1); }
+    .severity-btn.active[data-tier="LOW"] { border-color: var(--color-low); color: var(--color-low); background: rgba(6, 182, 212, 0.1); }
+    
+    .severity-badge-count {
+      font-size: 0.65rem;
+      opacity: 0.7;
+      margin-top: 2px;
+    }
+    
+    .hotspot-list-container {
+      flex: 1;
+      overflow-y: auto;
+      padding: 1rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.75rem;
+    }
+    
+    .list-header {
+      font-size: 0.75rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--text-muted);
+      font-weight: 700;
+      padding: 0 0.25rem;
+      display: flex;
+      justify-content: space-between;
+    }
+    
+    .hotspot-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border-color);
+      border-radius: 10px;
+      padding: 0.9rem;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      position: relative;
+      overflow: hidden;
+    }
+    
+    .hotspot-card:hover {
+      background: var(--bg-card-hover);
+      border-color: var(--border-color-active);
+      transform: translateY(-2px);
+    }
+    
+    .hotspot-card.selected {
+      border-color: var(--accent);
+      background: rgba(99, 102, 241, 0.08);
+      box-shadow: 0 0 15px rgba(99, 102, 241, 0.1);
+    }
+    
+    .hotspot-card::before {
+      content: '';
+      position: absolute;
+      left: 0;
+      top: 0;
+      bottom: 0;
+      width: 4px;
+      background: var(--color-low);
+    }
+    
+    .hotspot-card.severity-critical::before { background: var(--color-critical); }
+    .hotspot-card.severity-high::before { background: var(--color-high); }
+    .hotspot-card.severity-medium::before { background: var(--color-medium); }
+    .hotspot-card.severity-low::before { background: var(--color-low); }
+    
+    .card-top {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      margin-bottom: 0.5rem;
+    }
+    
+    .card-rank-station {
+      display: flex;
+      flex-direction: column;
+    }
+    
+    .card-rank {
+      font-size: 0.7rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      color: var(--text-secondary);
+      letter-spacing: 0.025em;
+    }
+    
+    .card-station {
+      font-size: 0.9rem;
+      font-weight: 700;
+      color: white;
+    }
+    
+    .card-cis-container {
+      text-align: right;
+    }
+    
+    .card-cis-label {
+      font-size: 0.6rem;
+      text-transform: uppercase;
+      color: var(--text-muted);
+      font-weight: 700;
+    }
+    
+    .card-cis-value {
+      font-size: 1.1rem;
+      font-weight: 800;
+    }
+    
+    .hotspot-card.severity-critical .card-cis-value { color: var(--color-critical); text-shadow: 0 0 10px var(--glow-critical); }
+    .hotspot-card.severity-high .card-cis-value { color: var(--color-high); text-shadow: 0 0 10px var(--glow-high); }
+    .hotspot-card.severity-medium .card-cis-value { color: var(--color-medium); text-shadow: 0 0 10px var(--glow-medium); }
+    .hotspot-card.severity-low .card-cis-value { color: var(--color-low); text-shadow: 0 0 10px var(--glow-low); }
+    
+    .card-location {
+      font-size: 0.75rem;
+      color: var(--text-secondary);
+      line-height: 1.3;
+      margin-bottom: 0.5rem;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    
+    .card-meta {
+      display: flex;
+      gap: 0.75rem;
+      font-size: 0.7rem;
+      color: var(--text-muted);
+      font-weight: 500;
+    }
+    
+    .card-meta span {
+      display: flex;
+      align-items: center;
+      gap: 0.25rem;
+    }
+    
+    /* ── Detail Panel Elements ────────────────────────────────────────────── */
+    .panel-header {
+      padding: 1.25rem;
+      border-bottom: 1px solid var(--border-color);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    
+    .panel-header h2 {
+      font-size: 1.15rem;
+      font-weight: 700;
+    }
+    
+    .panel-body {
+      flex: 1;
+      overflow-y: auto;
+      padding: 1.25rem;
+      display: flex;
+      flex-direction: column;
+      gap: 1.5rem;
+    }
+    
+    .close-detail-btn {
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid var(--border-color);
+      color: var(--text-secondary);
+      width: 28px;
+      height: 28px;
+      border-radius: 50%;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.2s;
+    }
+    
+    .close-detail-btn:hover {
+      background: rgba(255, 255, 255, 0.15);
+      color: white;
+    }
+    
+    /* KPI Cards */
+    .kpi-container {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 0.75rem;
+    }
+    
+    .kpi-card {
+      background: rgba(0, 0, 0, 0.2);
+      border: 1px solid var(--border-color);
+      border-radius: 10px;
+      padding: 0.85rem;
+      display: flex;
+      flex-direction: column;
+      position: relative;
+      overflow: hidden;
+    }
+    
+    .kpi-card-full {
+      grid-column: span 2;
+    }
+    
+    .kpi-label {
+      font-size: 0.65rem;
+      text-transform: uppercase;
+      color: var(--text-secondary);
+      font-weight: 700;
+      letter-spacing: 0.025em;
+    }
+    
+    .kpi-value {
+      font-size: 1.5rem;
+      font-weight: 800;
+      margin-top: 0.25rem;
+    }
+    
+    .kpi-footer {
+      font-size: 0.65rem;
+      color: var(--text-muted);
+      margin-top: 0.25rem;
+    }
+    
+    /* Hotspot Detail Spec */
+    .hotspot-title-area {
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+    }
+    
+    .hotspot-badges {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+    
+    .badge {
+      font-size: 0.65rem;
+      font-weight: 700;
+      padding: 0.25rem 0.5rem;
+      border-radius: 4px;
+      text-transform: uppercase;
+    }
+    
+    .badge-critical { background: rgba(239, 68, 68, 0.15); color: var(--color-critical); border: 1px solid rgba(239, 68, 68, 0.3); }
+    .badge-high { background: rgba(249, 115, 22, 0.15); color: var(--color-high); border: 1px solid rgba(249, 115, 22, 0.3); }
+    .badge-medium { background: rgba(234, 179, 8, 0.15); color: var(--color-medium); border: 1px solid rgba(234, 179, 8, 0.3); }
+    .badge-low { background: rgba(6, 182, 212, 0.15); color: var(--color-low); border: 1px solid rgba(6, 182, 212, 0.3); }
+    
+    .hotspot-name {
+      font-size: 1.1rem;
+      font-weight: 800;
+      color: white;
+      line-height: 1.4;
+    }
+    
+    .hotspot-desc {
+      font-size: 0.8rem;
+      color: var(--text-secondary);
+      line-height: 1.4;
+    }
+    
+    /* Subscore Progress Bars */
+    .subscore-group {
+      display: flex;
+      flex-direction: column;
+      gap: 0.75rem;
+    }
+    
+    .subscore-row {
+      display: flex;
+      flex-direction: column;
+      gap: 0.25rem;
+    }
+    
+    .subscore-info {
+      display: flex;
+      justify-content: space-between;
+      font-size: 0.75rem;
+      font-weight: 500;
+    }
+    
+    .subscore-name {
+      color: var(--text-secondary);
+    }
+    
+    .subscore-val {
+      font-weight: 700;
+      color: white;
+    }
+    
+    .progress-bar-bg {
+      height: 6px;
+      background: rgba(255, 255, 255, 0.05);
+      border-radius: 3px;
+      overflow: hidden;
+    }
+    
+    .progress-bar-fill {
+      height: 100%;
+      border-radius: 3px;
+      transition: width 0.8s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+    
+    .fill-density { background: var(--accent); }
+    .fill-junction { background: var(--color-low); }
+    .fill-vehicle { background: var(--color-medium); }
+    .fill-persistence { background: var(--color-high); }
+    .fill-peak { background: #ec4899; }
+    
+    /* Data tables/lists */
+    .distribution-list {
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+    }
+    
+    .dist-row {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      font-size: 0.75rem;
+    }
+    
+    .dist-label {
+      flex: 1;
+      color: var(--text-secondary);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    
+    .dist-bar-wrapper {
+      flex: 2;
+      height: 6px;
+      background: rgba(255, 255, 255, 0.05);
+      border-radius: 3px;
+      overflow: hidden;
+    }
+    
+    .dist-bar-fill {
+      height: 100%;
+      background: rgba(255, 255, 255, 0.25);
+      border-radius: 3px;
+    }
+    
+    .dist-value {
+      width: 40px;
+      text-align: right;
+      font-weight: 600;
+      color: white;
+    }
+    
+    .section-title {
+      font-size: 0.85rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--text-secondary);
+      font-weight: 700;
+      border-left: 3px solid var(--accent);
+      padding-left: 0.5rem;
+      margin-bottom: 0.75rem;
+    }
+    
+    /* Repeat Offenders Table */
+    .offenders-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.75rem;
+    }
+    
+    .offenders-table th {
+      text-align: left;
+      color: var(--text-muted);
+      font-weight: 700;
+      padding: 0.4rem 0.5rem;
+      border-bottom: 1px solid var(--border-color);
+      text-transform: uppercase;
+      font-size: 0.65rem;
+    }
+    
+    .offenders-table td {
+      padding: 0.5rem;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.03);
+      color: var(--text-secondary);
+    }
+    
+    .offenders-table tr:hover td {
+      background: rgba(255, 255, 255, 0.02);
+      color: white;
+    }
+    
+    .offender-vehicle {
+      font-weight: 700;
+      color: white;
+    }
+    
+    .offender-count-badge {
+      background: rgba(239, 68, 68, 0.15);
+      color: var(--color-critical);
+      padding: 0.1rem 0.35rem;
+      border-radius: 4px;
+      font-weight: 700;
+      font-size: 0.7rem;
+      border: 1px solid rgba(239, 68, 68, 0.2);
+    }
+    
+    /* ── Custom Map Popup ──────────────────────────────────────────────────── */
+    .leaflet-popup-content-wrapper {
+      background: rgba(17, 24, 39, 0.95) !important;
+      backdrop-filter: blur(12px);
+      border: 1px solid var(--border-color);
+      color: white !important;
+      border-radius: 12px !important;
+      box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.5) !important;
+      padding: 4px;
+    }
+    
+    .leaflet-popup-tip {
+      background: rgba(17, 24, 39, 0.95) !important;
+      border: 1px solid var(--border-color);
+    }
+    
+    .popup-title {
+      font-size: 0.9rem;
+      font-weight: 700;
+      margin-bottom: 0.25rem;
+      border-bottom: 1px solid var(--border-color);
+      padding-bottom: 0.25rem;
+    }
+    
+    .popup-row {
+      font-size: 0.75rem;
+      margin: 0.25rem 0;
+      display: flex;
+      justify-content: space-between;
+    }
+    
+    .popup-label {
+      color: var(--text-secondary);
+    }
+    
+    .popup-value {
+      font-weight: 600;
+      color: white;
+    }
+    
+    /* ── Empty State & Error state ─────────────────────────────────────────── */
+    .empty-state {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      height: 100%;
+      text-align: center;
+      color: var(--text-muted);
+      gap: 0.75rem;
+      padding: 2rem;
+    }
+    
+    .empty-state svg {
+      color: var(--text-muted);
+      opacity: 0.4;
+    }
+    
+    .error-banner {
+      background: rgba(239, 68, 68, 0.1);
+      border: 1px solid rgba(239, 68, 68, 0.2);
+      color: #fca5a5;
+      padding: 0.75rem;
+      margin: 1rem;
+      border-radius: 8px;
+      font-size: 0.75rem;
+      line-height: 1.4;
+      display: none;
+    }
+    
+    .chart-container {
+      position: relative;
+      width: 100%;
+      height: 160px;
+    }
+    
+    /* ── Heatgrid styles ── */
+    .heatgrid-container {
+      display: flex;
+      gap: 0.5rem;
+      background: var(--bg-card);
+      border: 1px solid var(--border-color);
+      border-radius: 8px;
+      padding: 0.75rem;
+      margin-bottom: 0.5rem;
+    }
+    .heatgrid-y-labels {
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      font-size: 0.65rem;
+      color: var(--text-muted);
+      padding-top: 14px; /* Align with cells grid */
+      height: 96px;
+    }
+    .heatgrid-board {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      gap: 0.25rem;
+    }
+    .heatgrid-x-labels {
+      display: flex;
+      justify-content: space-between;
+      font-size: 0.65rem;
+      color: var(--text-muted);
+      height: 12px;
+    }
+    .heatgrid-cells-grid {
+      display: grid;
+      grid-template-columns: repeat(24, 1fr);
+      grid-template-rows: repeat(7, 1fr);
+      gap: 2px;
+      height: 80px;
+    }
+    .heatgrid-cell {
+      background: rgba(255, 255, 255, 0.03);
+      border-radius: 1px;
+      aspect-ratio: 1;
+      transition: all 0.2s ease;
+      cursor: pointer;
+      position: relative;
+    }
+    .heatgrid-cell:hover {
+      transform: scale(1.4);
+      z-index: 5;
+      box-shadow: 0 0 8px rgba(255, 255, 255, 0.3);
+    }
+    .heatgrid-legend {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 0.5rem;
+      margin-bottom: 1rem;
+      padding: 0 0.25rem;
+    }
+    .legend-gradient {
+      flex: 1;
+      height: 6px;
+      border-radius: 3px;
+      background: linear-gradient(to right, rgba(99, 102, 241, 0.05), rgba(99, 102, 241, 0.4), rgba(239, 68, 68, 0.7), rgba(239, 68, 68, 1));
+    }
+    .heatgrid-cell[data-tooltip]:hover::after {
+      content: attr(data-tooltip);
+      position: absolute;
+      bottom: 120%;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(3, 7, 18, 0.95);
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      color: white;
+      font-size: 0.6rem;
+      padding: 2px 6px;
+      border-radius: 4px;
+      white-space: nowrap;
+      pointer-events: none;
+      box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+      z-index: 999;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- HEADER -->
+  <header>
+    <div class="brand">
+      <div class="brand-logo">P</div>
+      <div class="brand-title">
+        <h1>ParkWatch AI</h1>
+        <p>Bengaluru Traffic Parking Congestion Analytics & Intelligence</p>
+      </div>
+    </div>
+    <div class="header-actions">
+      <button id="heatmap-toggle" class="map-toggle-btn">
+        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+        Toggle Density Heatmap
+      </button>
+    </div>
+  </header>
+
+  <!-- MAIN BODY -->
+  <main>
+    
+    <!-- LEFT SIDEBAR: Search, Filters & Hotspots list -->
+    <section class="sidebar">
+      <div class="search-filter-section">
+        <div class="search-container">
+          <svg class="search-icon" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+          <input type="text" id="search-input" class="search-input" placeholder="Search by junction or location …">
+        </div>
+        
+        <select id="station-filter" class="filter-dropdown">
+          <option value="ALL">All Police Stations</option>
+        </select>
+        
+        <div class="severity-filters">
+          <button class="severity-btn active" data-tier="ALL">
+            <span>ALL</span>
+            <span id="badge-all-count" class="severity-badge-count">0</span>
+          </button>
+          <button class="severity-btn" data-tier="CRITICAL">
+            <span>CRITICAL</span>
+            <span id="badge-critical-count" class="severity-badge-count">0</span>
+          </button>
+          <button class="severity-btn" data-tier="HIGH">
+            <span>HIGH</span>
+            <span id="badge-high-count" class="severity-badge-count">0</span>
+          </button>
+          <button class="severity-btn" data-tier="MEDIUM">
+            <span>MEDIUM</span>
+            <span id="badge-medium-count" class="severity-badge-count">0</span>
+          </button>
+          <button class="severity-btn" data-tier="LOW">
+            <span>LOW</span>
+            <span id="badge-low-count" class="severity-badge-count">0</span>
+          </button>
+        </div>
+      </div>
+      
+      <div class="hotspot-list-container">
+        <div class="list-header">
+          <span>Enforcement Hotspots</span>
+          <span id="list-count">0 Zones</span>
+        </div>
+        <div id="hotspots-list" style="display: flex; flex-direction: column; gap: 0.75rem;">
+          <!-- Hotspot cards will be loaded here dynamically -->
+        </div>
+      </div>
+    </section>
+
+    <!-- MIDDLE: Leaflet Map -->
+    <section class="map-container">
+      <div id="map"></div>
+    </section>
+
+    <!-- RIGHT SIDEBAR: Details Panel (Global stats or specific hotspot details) -->
+    <section class="detail-panel">
+      
+      <!-- Error notice under CORS -->
+      <div id="cors-error" class="error-banner">
+        <strong>Data Load Error (CORS Restriction):</strong><br>
+        Directly opening local files in browsers blocks requests for security. Please run a local HTTP server to host this page:
+        <pre style="margin-top: 5px; background: rgba(0,0,0,0.4); padding: 4px; border-radius: 4px; font-family: monospace;">python -m http.server 8000</pre>
+        Then visit: <a href="http://localhost:8000" target="_blank" style="color: #6366f1; text-decoration: underline;">http://localhost:8000</a>
+      </div>
+
+      <!-- PANEL CONTENT: Selected Hotspot Details -->
+      <div id="panel-hotspot-detail" style="display: none; height: 100%; flex-direction: column; overflow: hidden;">
+        <div class="panel-header">
+          <h2>Hotspot Detail View</h2>
+          <button id="close-detail" class="close-detail-btn">
+            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+          </button>
+        </div>
+        <div class="panel-body">
+          <div class="hotspot-title-area">
+            <div class="hotspot-badges">
+              <span id="detail-badge" class="badge">-</span>
+              <span id="detail-station" class="badge badge-low" style="background: rgba(255, 255, 255, 0.05); color: var(--text-secondary); border: 1px solid var(--border-color);">-</span>
+            </div>
+            <div id="detail-name" class="hotspot-name">-</div>
+            <div id="detail-meta-junc" class="hotspot-desc">Dominant Junction: -</div>
+          </div>
+          
+          <div class="kpi-container">
+            <div class="kpi-card">
+              <span class="kpi-label">CIS Rank</span>
+              <span id="detail-kpi-rank" class="kpi-value">-</span>
+            </div>
+            <div class="kpi-card">
+              <span class="kpi-label">Congestion CIS</span>
+              <span id="detail-kpi-cis" class="kpi-value" style="color: var(--color-critical);">-</span>
+            </div>
+            <div class="kpi-card">
+              <span class="kpi-label">Violations Count</span>
+              <span id="detail-kpi-count" class="kpi-value">-</span>
+            </div>
+            <div class="kpi-card">
+              <span class="kpi-label">Peak Violation hours</span>
+              <span id="detail-kpi-peaks" class="kpi-value" style="font-size: 0.95rem; font-weight: 700; height: 36px; display: flex; align-items: center;">-</span>
+            </div>
+          </div>
+          
+          <div>
+            <h3 class="section-title">Congestion Impact Factors</h3>
+            <div class="subscore-group">
+              
+              <div class="subscore-row">
+                <div class="subscore-info">
+                  <span class="subscore-name">Violation Density</span>
+                  <span id="subscore-density-val" class="subscore-val">-</span>
+                </div>
+                <div class="progress-bar-bg">
+                  <div id="subscore-density-bar" class="progress-bar-fill fill-density" style="width: 0%"></div>
+                </div>
+              </div>
+              
+              <div class="subscore-row">
+                <div class="subscore-info">
+                  <span class="subscore-name">Junction Proximity</span>
+                  <span id="subscore-junction-val" class="subscore-val">-</span>
+                </div>
+                <div class="progress-bar-bg">
+                  <div id="subscore-junction-bar" class="progress-bar-fill fill-junction" style="width: 0%"></div>
+                </div>
+              </div>
+              
+              <div class="subscore-row">
+                <div class="subscore-info">
+                  <span class="subscore-name">Vehicle Size Congestion Factor</span>
+                  <span id="subscore-vehicle-val" class="subscore-val">-</span>
+                </div>
+                <div class="progress-bar-bg">
+                  <div id="subscore-vehicle-bar" class="progress-bar-fill fill-vehicle" style="width: 0%"></div>
+                </div>
+              </div>
+              
+              <div class="subscore-row">
+                <div class="subscore-info">
+                  <span class="subscore-name">Temporal Persistence (Chronic Index)</span>
+                  <span id="subscore-persistence-val" class="subscore-val">-</span>
+                </div>
+                <div class="progress-bar-bg">
+                  <div id="subscore-persistence-bar" class="progress-bar-fill fill-persistence" style="width: 0%"></div>
+                </div>
+              </div>
+              
+              <div class="subscore-row">
+                <div class="subscore-info">
+                  <span class="subscore-name">Peak Hour Blockage Overlay</span>
+                  <span id="subscore-peak-val" class="subscore-val">-</span>
+                </div>
+                <div class="progress-bar-bg">
+                  <div id="subscore-peak-bar" class="progress-bar-fill fill-peak" style="width: 0%"></div>
+                </div>
+              </div>
+              
+            </div>
+          </div>
+          
+          <div style="margin-top: 1.25rem;">
+            <h3 class="section-title">Traffic Quantification Models</h3>
+            <div class="kpi-container" style="grid-template-columns: repeat(2, 1fr); gap: 0.65rem;">
+              <div class="kpi-card" style="padding: 0.6rem; min-height: 80px; display: flex; flex-direction: column; justify-content: space-between;">
+                <span class="kpi-label" style="font-size: 0.65rem;">Total Blockage Load</span>
+                <span id="detail-kpi-total-pcu" class="kpi-value" style="font-size: 1.15rem; line-height: 1.2; font-weight: 800;">-</span>
+                <span class="kpi-label" style="font-size: 0.55rem; text-transform: none; margin-top: 0.1rem; color: var(--text-secondary);">Passenger Car Units (PCU)</span>
+              </div>
+              <div class="kpi-card" style="padding: 0.6rem; min-height: 80px; display: flex; flex-direction: column; justify-content: space-between;">
+                <span class="kpi-label" style="font-size: 0.65rem;">Daily Blockage Load</span>
+                <span id="detail-kpi-daily-pcu-load" class="kpi-value" style="font-size: 1.15rem; line-height: 1.2; font-weight: 800;">-</span>
+                <span class="kpi-label" style="font-size: 0.55rem; text-transform: none; margin-top: 0.1rem; color: var(--text-secondary);">PCU-Hours / Day</span>
+              </div>
+              <div class="kpi-card" style="padding: 0.6rem; min-height: 80px; display: flex; flex-direction: column; justify-content: space-between;">
+                <span class="kpi-label" style="font-size: 0.65rem;">Lane Capacity Loss</span>
+                <span id="detail-kpi-lcr" class="kpi-value" style="font-size: 1.15rem; line-height: 1.2; font-weight: 800;">-</span>
+                <span class="kpi-label" style="font-size: 0.55rem; text-transform: none; margin-top: 0.1rem; color: var(--text-secondary);">Est. capacity reduction</span>
+              </div>
+              <div class="kpi-card" style="padding: 0.6rem; min-height: 80px; display: flex; flex-direction: column; justify-content: space-between;">
+                <span class="kpi-label" style="font-size: 0.65rem;">Delay Multiplier</span>
+                <span id="detail-kpi-delay" class="kpi-value" style="font-size: 1.15rem; line-height: 1.2; font-weight: 800;">-</span>
+                <span class="kpi-label" style="font-size: 0.55rem; text-transform: none; margin-top: 0.1rem; color: var(--text-secondary);">BPR travel time index</span>
+              </div>
+            </div>
+          </div>
+          
+          <div>
+            <h3 class="section-title">Top Violations</h3>
+            <div id="detail-violations-list" class="distribution-list">
+              <!-- Dynamically populated -->
+            </div>
+          </div>
+          
+          <div>
+            <h3 class="section-title">Hourly Trend</h3>
+            <div class="chart-container">
+              <canvas id="detail-hourly-chart"></canvas>
+            </div>
+          </div>
+        </div>
+      </div>
+      
+      <!-- PANEL CONTENT: Global Overview and Charts -->
+      <div id="panel-global-overview" style="display: flex; height: 100%; flex-direction: column; overflow: hidden;">
+        <div class="panel-header">
+          <h2>Global Traffic Intelligence</h2>
+        </div>
+        <div class="panel-body">
+          
+          <div class="kpi-container">
+            <div class="kpi-card">
+              <span class="kpi-label">Total Violations</span>
+              <span id="global-kpi-violations" class="kpi-value">-</span>
+              <span class="kpi-footer">Analyzed traffic records</span>
+            </div>
+            <div class="kpi-card">
+              <span class="kpi-label">Active Hotspots</span>
+              <span id="global-kpi-hotspots" class="kpi-value">-</span>
+              <span class="kpi-footer">Clustered hotspot zones</span>
+            </div>
+            <div class="kpi-card">
+              <span class="kpi-label">Critical Zones (CIS ≥ 70)</span>
+              <span id="global-kpi-critical" class="kpi-value" style="color: var(--color-critical);">-</span>
+              <span class="kpi-footer">Immediate enforcement</span>
+            </div>
+            <div class="kpi-card">
+              <span class="kpi-label">Average CIS</span>
+              <span id="global-kpi-avgcis" class="kpi-value" style="color: #818cf8;">-</span>
+              <span class="kpi-footer">Across all detected zones</span>
+            </div>
+          </div>
+
+          <div>
+            <h3 class="section-title">Hourly Diurnal Cycle</h3>
+            <p style="font-size: 0.7rem; color: var(--text-muted); margin-bottom: 0.5rem; margin-top: -0.25rem;">Highlighting morning and evening commute peak periods</p>
+            <div class="chart-container">
+              <canvas id="global-hourly-chart"></canvas>
+            </div>
+          </div>
+          
+          <div>
+            <h3 class="section-title">Weekly Diurnal Cycle</h3>
+            <div class="chart-container">
+              <canvas id="global-weekly-chart"></canvas>
+            </div>
+          </div>
+          
+          <div>
+            <h3 class="section-title">Congestion Temporal Heatmap</h3>
+            <p style="font-size: 0.7rem; color: var(--text-muted); margin-bottom: 0.5rem; margin-top: -0.25rem;">PCU congestion load by day of week and hour of day (entire dataset)</p>
+            <div class="heatgrid-container">
+              <div class="heatgrid-y-labels">
+                <div>Mon</div>
+                <div>Tue</div>
+                <div>Wed</div>
+                <div>Thu</div>
+                <div>Fri</div>
+                <div>Sat</div>
+                <div>Sun</div>
+              </div>
+              <div class="heatgrid-board">
+                <div class="heatgrid-x-labels">
+                  <span>12a</span><span>4a</span><span>8a</span><span>12p</span><span>4p</span><span>8p</span>
+                </div>
+                <div id="heatgrid-cells" class="heatgrid-cells-grid"></div>
+              </div>
+            </div>
+            <div class="heatgrid-legend">
+              <span style="font-size: 0.65rem; color: var(--text-muted);">Low Congestion</span>
+              <div class="legend-gradient"></div>
+              <span style="font-size: 0.65rem; color: var(--text-muted);">High Congestion</span>
+            </div>
+          </div>
+          
+          <div>
+            <h3 class="section-title">Top Repeat Offenders</h3>
+            <p style="font-size: 0.7rem; color: var(--text-muted); margin-bottom: 0.5rem; margin-top: -0.25rem;">Vehicles flagged with multiple offenses inside identical hotspots</p>
+            <div style="overflow-x: auto;">
+              <table class="offenders-table">
+                <thead>
+                  <tr>
+                    <th>Vehicle</th>
+                    <th>Station</th>
+                    <th>Violations</th>
+                  </tr>
+                </thead>
+                <tbody id="repeat-offenders-list">
+                  <!-- Dynamically populated -->
+                </tbody>
+              </table>
+            </div>
+          </div>
+          
+        </div>
+      </div>
+      
+    </section>
+  </main>
+
+  <!-- Leaflet JS -->
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+  <!-- Leaflet Heatmap Plugin -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.heat/0.2.0/leaflet-heat.js"></script>
+  <!-- Chart.js -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+  <script>
+    // ── Deployment Configuration ─────────────────────────────────────────────
+    // Set to your Render backend URL when deployed (e.g. "https://parkwatch-backend.onrender.com")
+    // Keep empty or null to load parkwatch_data.json locally from the same directory
+    const BACKEND_URL = ""; 
+
+    // ── Global State ────────────────────────────────────────────────────────
+    let globalData = null;
+    let filteredHotspots = [];
+    let map = null;
+    let markerLayer = null;
+    let heatmapLayer = null;
+    let isHeatmapActive = false;
+    let selectedHotspotId = null;
+    
+    // Chart References
+    let globalHourlyChart = null;
+    let globalWeeklyChart = null;
+    let detailHourlyChart = null;
+    
+    // Color mappings
+    const SEVERITY_COLORS = {
+      'CRITICAL': 'var(--color-critical)',
+      'HIGH': 'var(--color-high)',
+      'MEDIUM': 'var(--color-medium)',
+      'LOW': 'var(--color-low)'
+    };
+    
+    const SEVERITY_GLOWS = {
+      'CRITICAL': 'var(--glow-critical)',
+      'HIGH': 'var(--glow-high)',
+      'MEDIUM': 'var(--glow-medium)',
+      'LOW': 'var(--glow-low)'
+    };
+    
+    // ── Setup & Initialization ──────────────────────────────────────────────
+    document.addEventListener("DOMContentLoaded", () => {
+      initMap();
+      loadData();
+      setupEventListeners();
+    });
+    
+    function initMap() {
+      // Center Bengaluru
+      map = L.map('map', {
+        zoomControl: false
+      }).setView([12.9716, 77.5946], 12);
+      
+      // Dark theme tiles (CartoDB Dark Matter)
+      L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>',
+        subdomains: 'abcd',
+        maxZoom: 20
+      }).addTo(map);
+      
+      // Standard zoom control reposition
+      L.control.zoom({
+        position: 'bottomright'
+      }).addTo(map);
+      
+      markerLayer = L.layerGroup().addTo(map);
+    }
+    
+    function setupEventListeners() {
+      // Search
+      document.getElementById("search-input").addEventListener("input", filterAndRender);
+      
+      // Police Station filter
+      document.getElementById("station-filter").addEventListener("change", filterAndRender);
+      
+      // Severity buttons
+      const sevButtons = document.querySelectorAll(".severity-btn");
+      sevButtons.forEach(btn => {
+        btn.addEventListener("click", () => {
+          sevButtons.forEach(b => b.classList.remove("active"));
+          btn.classList.add("active");
+          filterAndRender();
+        });
+      });
+      
+      // Heatmap toggle
+      document.getElementById("heatmap-toggle").addEventListener("click", (e) => {
+        isHeatmapActive = !isHeatmapActive;
+        e.target.classList.toggle("active", isHeatmapActive);
+        updateMapLayers();
+      });
+      
+      // Close detail view
+      document.getElementById("close-detail").addEventListener("click", closeHotspotDetail);
+    }
+    
+    // ── Data Fetching ───────────────────────────────────────────────────────
+    function loadData() {
+      const fetchUrl = BACKEND_URL ? `${BACKEND_URL.replace(/\/$/, '')}/api/data` : "parkwatch_data.json";
+      fetch(fetchUrl)
+        .then(response => {
+          if (!response.ok) {
+            throw new Error("HTTP error " + response.status);
+          }
+          return response.json();
+        })
+        .then(data => {
+          globalData = data;
+          filteredHotspots = [...data.hotspots];
+          
+          populatePoliceStations();
+          renderGlobalStats();
+          filterAndRender();
+        })
+        .catch(err => {
+          console.error("Failed to load JSON data:", err);
+          document.getElementById("cors-error").style.display = "block";
+        });
+    }
+    
+    function populatePoliceStations() {
+      const select = document.getElementById("station-filter");
+      // Extract unique stations
+      const stationsMap = {};
+      globalData.hotspots.forEach(h => {
+        const s = h.police_station || "Unknown";
+        stationsMap[s] = (stationsMap[s] || 0) + 1;
+      });
+      
+      const sortedStations = Object.keys(stationsMap).sort();
+      sortedStations.forEach(station => {
+        const option = document.createElement("option");
+        option.value = station;
+        option.textContent = `${station} (${stationsMap[station]} zones)`;
+        select.appendChild(option);
+      });
+    }
+    
+    // ── Filtering Logic ─────────────────────────────────────────────────────
+    function filterAndRender() {
+      if (!globalData) return;
+      
+      const searchQuery = document.getElementById("search-input").value.toLowerCase().trim();
+      const stationFilter = document.getElementById("station-filter").value;
+      
+      const activeSeverityBtn = document.querySelector(".severity-btn.active");
+      const severityFilter = activeSeverityBtn ? activeSeverityBtn.getAttribute("data-tier") : "ALL";
+      
+      filteredHotspots = globalData.hotspots.filter(h => {
+        // Search filter (name, junction, police station)
+        const matchSearch = !searchQuery || 
+          h.location_sample.toLowerCase().includes(searchQuery) ||
+          h.junction_name.toLowerCase().includes(searchQuery) ||
+          h.police_station.toLowerCase().includes(searchQuery);
+          
+        // Station filter
+        const matchStation = stationFilter === "ALL" || h.police_station === stationFilter;
+        
+        // Severity filter
+        const matchSeverity = severityFilter === "ALL" || h.severity === severityFilter;
+        
+        return matchSearch && matchStation && matchSeverity;
+      });
+      
+      // Update severity badge counts
+      updateBadgeCounts(searchQuery, stationFilter);
+      
+      // Render
+      document.getElementById("list-count").textContent = `${filteredHotspots.length} Zones`;
+      renderHotspotList();
+      updateMapLayers();
+    }
+    
+    function updateBadgeCounts(searchQuery, stationFilter) {
+      const counts = { ALL: 0, CRITICAL: 0, HIGH: 0, MEDIUM: 0, LOW: 0 };
+      
+      globalData.hotspots.forEach(h => {
+        const matchSearch = !searchQuery || 
+          h.location_sample.toLowerCase().includes(searchQuery) ||
+          h.junction_name.toLowerCase().includes(searchQuery) ||
+          h.police_station.toLowerCase().includes(searchQuery);
+          
+        const matchStation = stationFilter === "ALL" || h.police_station === stationFilter;
+        
+        if (matchSearch && matchStation) {
+          counts.ALL++;
+          counts[h.severity]++;
+        }
+      });
+      
+      document.getElementById("badge-all-count").textContent = counts.ALL;
+      document.getElementById("badge-critical-count").textContent = counts.CRITICAL;
+      document.getElementById("badge-high-count").textContent = counts.HIGH;
+      document.getElementById("badge-medium-count").textContent = counts.MEDIUM;
+      document.getElementById("badge-low-count").textContent = counts.LOW;
+    }
+    
+    // ── Rendering Left Sidebar List ─────────────────────────────────────────
+    function renderHotspotList() {
+      const container = document.getElementById("hotspots-list");
+      container.innerHTML = "";
+      
+      if (filteredHotspots.length === 0) {
+        container.innerHTML = `
+          <div class="empty-state">
+            <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="8" y1="12" x2="16" y2="12"></line></svg>
+            <p style="font-size: 0.8rem;">No hotspots match your filters.</p>
+          </div>
+        `;
+        return;
+      }
+      
+      filteredHotspots.forEach(h => {
+        const card = document.createElement("div");
+        card.className = `hotspot-card severity-${h.severity.toLowerCase()}`;
+        if (selectedHotspotId === h.cluster_id) {
+          card.classList.add("selected");
+        }
+        
+        card.innerHTML = `
+          <div class="card-top">
+            <div class="card-rank-station">
+              <span class="card-rank">Rank #${h.rank}</span>
+              <span class="card-station">${h.police_station}</span>
+            </div>
+            <div class="card-cis-container">
+              <div class="card-cis-label">CIS</div>
+              <div class="card-cis-value">${h.cis}</div>
+            </div>
+          </div>
+          <div class="card-location">${h.location_sample}</div>
+          <div class="card-meta">
+            <span>
+              <svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path></svg>
+              ${h.violation_count} violations
+            </span>
+            <span>
+              <svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
+              Peak: ${h.peak_hours.split(',')[0] || 'N/A'}
+            </span>
+          </div>
+        `;
+        
+        card.addEventListener("click", () => selectHotspot(h));
+        container.appendChild(card);
+      });
+    }
+    
+    // ── Map Update Logic ────────────────────────────────────────────────────
+    function updateMapLayers() {
+      if (!map) return;
+      
+      // Clear
+      markerLayer.clearLayers();
+      if (heatmapLayer) {
+        map.removeLayer(heatmapLayer);
+        heatmapLayer = null;
+      }
+      
+      if (isHeatmapActive) {
+        // Build heatmap points: [lat, lon, weight]
+        const heatPoints = filteredHotspots.map(h => [
+          h.centroid_lat,
+          h.centroid_lon,
+          h.violation_count / 10 // Normalise scale
+        ]);
+        
+        heatmapLayer = L.heatLayer(heatPoints, {
+          radius: 25,
+          blur: 15,
+          maxZoom: 14,
+          gradient: { 0.4: 'blue', 0.65: 'lime', 1.0: 'red' }
+        }).addTo(map);
+        
+      } else {
+        // Draw individual hotspots
+        filteredHotspots.forEach(h => {
+          const color = SEVERITY_COLORS[h.severity];
+          
+          const circle = L.circle([h.centroid_lat, h.centroid_lon], {
+            color: color,
+            fillColor: color,
+            fillOpacity: 0.25,
+            weight: 2,
+            radius: Math.max(h.radius_km * 1000, 50) // meters
+          });
+          
+          // Popup content
+          const popupContent = `
+            <div style="min-width: 200px;">
+              <div class="popup-title">Rank #${h.rank} — Cluster ${h.cluster_id}</div>
+              <div class="popup-row"><span class="popup-label">CIS Score:</span><span class="popup-value" style="color:${color}">${h.cis} (${h.severity})</span></div>
+              <div class="popup-row"><span class="popup-label">Violations:</span><span class="popup-value">${h.violation_count}</span></div>
+              <div class="popup-row"><span class="popup-label">Station:</span><span class="popup-value">${h.police_station}</span></div>
+              <div class="popup-row"><span class="popup-label">Junction %:</span><span class="popup-value">${h.near_junction_pct}%</span></div>
+              <div class="popup-row"><span class="popup-label">Peak Hours:</span><span class="popup-value" style="font-size:0.65rem">${h.peak_hours}</span></div>
+              <div class="popup-row"><span class="popup-label">Location:</span><span class="popup-value" style="font-size:0.65rem; max-width:110px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${h.location_sample}</span></div>
+            </div>
+          `;
+          circle.bindPopup(popupContent);
+          
+          // Map Click events
+          circle.on("click", () => {
+            selectHotspot(h, false); // select without panning (panning already triggered by popup click/leaflet)
+          });
+          
+          markerLayer.addLayer(circle);
+        });
+      }
+    }
+    
+    // ── Selection Logic ─────────────────────────────────────────────────────
+    function selectHotspot(hotspot, shouldPan = true) {
+      selectedHotspotId = hotspot.cluster_id;
+      
+      // Update card highlighting
+      const cards = document.querySelectorAll(".hotspot-card");
+      cards.forEach(card => card.classList.remove("selected"));
+      
+      // Find the card and mark selected
+      const listContainer = document.getElementById("hotspots-list");
+      const idx = filteredHotspots.findIndex(h => h.cluster_id === hotspot.cluster_id);
+      if (idx !== -1) {
+        const cardElements = listContainer.children;
+        if (cardElements[idx]) {
+          cardElements[idx].classList.add("selected");
+          // scroll into view
+          cardElements[idx].scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        }
+      }
+      
+      if (shouldPan && map) {
+        map.setView([hotspot.centroid_lat, hotspot.centroid_lon], 15);
+        
+        // Open map popup for this hotspot
+        markerLayer.eachLayer(layer => {
+          if (layer.getLatLng && layer.getLatLng().lat === hotspot.centroid_lat && layer.getLatLng().lng === hotspot.centroid_lon) {
+            layer.openPopup();
+          }
+        });
+      }
+      
+      // Render detail view
+      renderHotspotDetail(hotspot);
+    }
+    
+    function closeHotspotDetail() {
+      selectedHotspotId = null;
+      document.querySelectorAll(".hotspot-card").forEach(c => c.classList.remove("selected"));
+      
+      document.getElementById("panel-hotspot-detail").style.display = "none";
+      document.getElementById("panel-global-overview").style.display = "flex";
+      
+      if (map) {
+        map.setView([12.9716, 77.5946], 12);
+        map.closePopup();
+      }
+    }
+    
+    // ── Global Charts & Stats ───────────────────────────────────────────────
+    function renderGlobalStats() {
+      if (!globalData) return;
+      
+      const summary = globalData.summary;
+      
+      document.getElementById("global-kpi-violations").textContent = summary.total_parking_violations.toLocaleString();
+      document.getElementById("global-kpi-hotspots").textContent = summary.total_hotspots;
+      document.getElementById("global-kpi-critical").textContent = summary.critical_zones;
+      document.getElementById("global-kpi-avgcis").textContent = summary.average_cis;
+      
+      // Populate Offenders List
+      const offendersBody = document.getElementById("repeat-offenders-list");
+      offendersBody.innerHTML = "";
+      
+      const topOffenders = globalData.repeat_offenders.slice(0, 5);
+      topOffenders.forEach(o => {
+        const tr = document.createElement("tr");
+        tr.innerHTML = `
+          <td><span class="offender-vehicle">${o.vehicle_number}</span></td>
+          <td>${o.police_station}</td>
+          <td><span class="offender-count-badge">${o.count}</span></td>
+        `;
+        offendersBody.appendChild(tr);
+      });
+      
+      // Render Charts
+      renderGlobalHourlyChart();
+      renderGlobalWeeklyChart();
+      renderGlobalHeatgrid();
+    }
+    
+    function renderGlobalHourlyChart() {
+      const ctx = document.getElementById('global-hourly-chart').getContext('2d');
+      if (globalHourlyChart) globalHourlyChart.destroy();
+      
+      const hourly = globalData.timeseries.hourly_global;
+      const labels = Array.from({ length: 24 }, (_, i) => `${i.toString().padStart(2, '0')}:00`);
+      const counts = labels.map((_, i) => hourly[i.toString()] || 0);
+      
+      // Peak hour background styling
+      const peakHoursMarked = counts.map((c, i) => {
+        const isPeak = (i >= 7 && i < 11) || (i >= 16 && i < 21);
+        return isPeak ? c : 0;
+      });
+      
+      globalHourlyChart = new Chart(ctx, {
+        type: 'line',
+        data: {
+          labels: labels,
+          datasets: [
+            {
+              label: 'Peak Hour Load',
+              data: peakHoursMarked,
+              backgroundColor: 'rgba(239, 68, 68, 0.15)',
+              borderColor: 'rgba(239, 68, 68, 0.8)',
+              borderWidth: 0,
+              fill: true,
+              pointRadius: 0,
+              order: 1
+            },
+            {
+              label: 'Violations Count',
+              data: counts,
+              borderColor: '#818cf8',
+              backgroundColor: 'rgba(129, 140, 248, 0.1)',
+              borderWidth: 2,
+              pointBackgroundColor: '#818cf8',
+              fill: false,
+              tension: 0.3,
+              order: 2
+            }
+          ]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: { display: false }
+          },
+          scales: {
+            x: {
+              grid: { color: 'rgba(255,255,255,0.04)' },
+              ticks: { color: '#9ca3af', font: { size: 9 }, maxTicksLimit: 8 }
+            },
+            y: {
+              grid: { color: 'rgba(255,255,255,0.04)' },
+              ticks: { color: '#9ca3af', font: { size: 9 } }
+            }
+          }
+        }
+      });
+    }
+    
+    function renderGlobalWeeklyChart() {
+      const ctx = document.getElementById('global-weekly-chart').getContext('2d');
+      if (globalWeeklyChart) globalWeeklyChart.destroy();
+      
+      const dow = globalData.timeseries.dow_global;
+      const order = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
+      const counts = order.map(day => dow[day] || 0);
+      
+      globalWeeklyChart = new Chart(ctx, {
+        type: 'bar',
+        data: {
+          labels: order.map(d => d.slice(0, 3)),
+          datasets: [{
+            label: 'Violations',
+            data: counts,
+            backgroundColor: counts.map((_, i) => i >= 5 ? 'rgba(6, 182, 212, 0.45)' : 'rgba(99, 102, 241, 0.45)'),
+            borderColor: counts.map((_, i) => i >= 5 ? 'var(--color-low)' : 'var(--accent)'),
+            borderWidth: 1,
+            borderRadius: 4
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: { display: false }
+          },
+          scales: {
+            x: {
+              grid: { display: false },
+              ticks: { color: '#9ca3af', font: { size: 9 } }
+            },
+            y: {
+              grid: { color: 'rgba(255,255,255,0.04)' },
+              ticks: { color: '#9ca3af', font: { size: 9 } }
+            }
+          }
+        }
+      });
+    }
+    
+    function renderGlobalHeatgrid() {
+      const container = document.getElementById("heatgrid-cells");
+      if (!container) return;
+      container.innerHTML = "";
+      
+      const heatmap = globalData.timeseries.congestion_heatmap;
+      if (!heatmap) return;
+      
+      let maxVal = 0.1;
+      for (let r = 0; r < 7; r++) {
+        if (!heatmap[r]) continue;
+        for (let c = 0; c < 24; c++) {
+          if (heatmap[r][c] > maxVal) {
+            maxVal = heatmap[r][c];
+          }
+        }
+      }
+      
+      const days = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
+      for (let r = 0; r < 7; r++) {
+        const dayName = days[r];
+        for (let c = 0; c < 24; c++) {
+          const val = (heatmap[r] && heatmap[r][c]) ? heatmap[r][c] : 0;
+          const normVal = Math.min(val / maxVal, 1.0);
+          
+          const cell = document.createElement("div");
+          cell.className = "heatgrid-cell";
+          
+          // Color Interpolation (Indigo to Red)
+          const rColor = Math.round(99 + (239 - 99) * normVal);
+          const gColor = Math.round(102 + (68 - 102) * normVal);
+          const bColor = Math.round(241 + (68 - 241) * normVal);
+          const opacity = 0.05 + 0.95 * normVal;
+          
+          cell.style.backgroundColor = `rgba(${rColor}, ${gColor}, ${bColor}, ${opacity})`;
+          
+          const hourStr = c === 0 ? "12 AM" : c === 12 ? "12 PM" : c > 12 ? `${c - 12} PM` : `${c} AM`;
+          cell.setAttribute("data-tooltip", `${dayName}, ${hourStr}: Congestion Load ${val.toLocaleString()}`);
+          
+          container.appendChild(cell);
+        }
+      }
+    }
+    
+    // ── Hotspot Details Render ──────────────────────────────────────────────
+    function renderHotspotDetail(h) {
+      document.getElementById("panel-global-overview").style.display = "none";
+      const panel = document.getElementById("panel-hotspot-detail");
+      panel.style.display = "flex";
+      
+      // Header details
+      const badge = document.getElementById("detail-badge");
+      badge.textContent = h.severity;
+      badge.className = `badge badge-${h.severity.toLowerCase()}`;
+      
+      document.getElementById("detail-station").textContent = h.police_station;
+      document.getElementById("detail-name").textContent = h.location_sample;
+      document.getElementById("detail-meta-junc").textContent = `Dominant Junction: ${h.junction_name}`;
+      
+      // KPIs
+      document.getElementById("detail-kpi-rank").textContent = `#${h.rank}`;
+      
+      const cisVal = document.getElementById("detail-kpi-cis");
+      cisVal.textContent = h.cis;
+      cisVal.style.color = SEVERITY_COLORS[h.severity];
+      
+      document.getElementById("detail-kpi-count").textContent = h.violation_count;
+      document.getElementById("detail-kpi-peaks").textContent = h.peak_hours;
+      
+      // Progress Bars (Raw metrics scaled or values)
+      // Density norm
+      const densityPct = Math.round(h.density_norm * 100);
+      document.getElementById("subscore-density-val").textContent = `${h.density.toLocaleString()} / km² (${densityPct}%)`;
+      document.getElementById("subscore-density-bar").style.width = `${densityPct}%`;
+      
+      // Junction
+      const junctionPct = Math.round(h.junction_norm * 100);
+      document.getElementById("subscore-junction-val").textContent = `${h.near_junction_pct}%`;
+      document.getElementById("subscore-junction-bar").style.width = `${junctionPct}%`;
+      
+      // Vehicle congestion weight (norm is 0-1)
+      const vehPct = Math.round(h.vehicle_norm * 100);
+      document.getElementById("subscore-vehicle-val").textContent = `${h.vehicle_congestion_weight.toFixed(2)} wt (${vehPct}%)`;
+      document.getElementById("subscore-vehicle-bar").style.width = `${vehPct}%`;
+      
+      // Persistence
+      const persistPct = Math.round(h.persistence_norm * 100);
+      document.getElementById("subscore-persistence-val").textContent = `${h.active_days} active days (${persistPct}%)`;
+      document.getElementById("subscore-persistence-bar").style.width = `${persistPct}%`;
+      
+      // Peak Hour Fraction
+      const peakPct = Math.round(h.peak_norm * 100);
+      document.getElementById("subscore-peak-val").textContent = `${(h.peak_hour_fraction * 100).toFixed(1)}%`;
+      document.getElementById("subscore-peak-bar").style.width = `${peakPct}%`;
+      
+      // Traffic Quantification Models
+      const totalPcu = h.total_pcu_blockage !== undefined ? h.total_pcu_blockage : (h.violation_count * h.vehicle_congestion_weight);
+      const lcrPct = h.lane_capacity_reduction_pct !== undefined ? h.lane_capacity_reduction_pct : Math.min(15.0 + 35.0 * (h.vehicle_congestion_weight / 3.0) + 30.0 * (h.near_junction_pct / 100.0), 85.0);
+      const delayMultiplier = h.traffic_delay_multiplier !== undefined ? h.traffic_delay_multiplier : (1.0 + 0.15 * (1.0 / (1.0 - (lcrPct / 100.0)))**2);
+      const dailyPcuLoad = h.daily_pcu_blockage_load !== undefined ? h.daily_pcu_blockage_load : ((totalPcu / (h.active_days || 1)) * (0.5 + 1.5 * h.peak_hour_fraction));
+
+      document.getElementById("detail-kpi-total-pcu").textContent = `${totalPcu.toFixed(1)} PCU`;
+      document.getElementById("detail-kpi-daily-pcu-load").textContent = `${dailyPcuLoad.toFixed(1)} PCU-h`;
+      
+      const lcrElem = document.getElementById("detail-kpi-lcr");
+      lcrElem.textContent = `-${lcrPct.toFixed(1)}%`;
+      lcrElem.style.color = lcrPct >= 60 ? "var(--color-critical)" : (lcrPct >= 40 ? "var(--color-high)" : "var(--color-medium)");
+      
+      const delayElem = document.getElementById("detail-kpi-delay");
+      delayElem.textContent = `${delayMultiplier.toFixed(2)}x`;
+      delayElem.style.color = delayMultiplier >= 3.0 ? "var(--color-critical)" : (delayMultiplier >= 1.5 ? "var(--color-high)" : "var(--color-medium)");
+
+      // Top Violations
+      const violContainer = document.getElementById("detail-violations-list");
+      violContainer.innerHTML = "";
+      
+      const maxCount = h.top_violations[0] ? h.top_violations[0].count : 1;
+      h.top_violations.forEach(v => {
+        const row = document.createElement("div");
+        row.className = "dist-row";
+        
+        const fillPct = Math.round((v.count / maxCount) * 100);
+        row.innerHTML = `
+          <span class="dist-label" title="${v.type}">${v.type}</span>
+          <div class="dist-bar-wrapper">
+            <div class="dist-bar-fill" style="width: ${fillPct}%; background: var(--accent);"></div>
+          </div>
+          <span class="dist-value">${v.count}</span>
+        `;
+        violContainer.appendChild(row);
+      });
+      
+      // Local Chart: Hourly Trend for Hotspot
+      renderHotspotHourlyChart(h);
+    }
+    
+    function renderHotspotHourlyChart(h) {
+      const ctx = document.getElementById('detail-hourly-chart').getContext('2d');
+      if (detailHourlyChart) detailHourlyChart.destroy();
+      
+      const hourly = h.hourly_distribution;
+      const labels = Array.from({ length: 24 }, (_, i) => `${i.toString().padStart(2, '0')}:00`);
+      const counts = labels.map((_, i) => hourly[i.toString()] || 0);
+      
+      const color = SEVERITY_COLORS[h.severity];
+      
+      detailHourlyChart = new Chart(ctx, {
+        type: 'line',
+        data: {
+          labels: labels,
+          datasets: [{
+            label: 'Violations',
+            data: counts,
+            borderColor: color,
+            backgroundColor: 'rgba(255,255,255,0.01)',
+            borderWidth: 2,
+            pointBackgroundColor: color,
+            fill: true,
+            tension: 0.3
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: { display: false }
+          },
+          scales: {
+            x: {
+              grid: { color: 'rgba(255,255,255,0.04)' },
+              ticks: { color: '#9ca3af', font: { size: 9 }, maxTicksLimit: 6 }
+            },
+            y: {
+              grid: { color: 'rgba(255,255,255,0.04)' },
+              ticks: { color: '#9ca3af', font: { size: 9 } }
+            }
+          }
+        }
+      });
+    }
+  </script>
+</body>
+</html>
