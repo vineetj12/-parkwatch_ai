@@ -1118,6 +1118,13 @@
               <canvas id="detail-hourly-chart"></canvas>
             </div>
           </div>
+
+          <div style="margin-top: 1.25rem;">
+            <h3 class="section-title">Weekly Trend</h3>
+            <div class="chart-container">
+              <canvas id="detail-weekly-chart"></canvas>
+            </div>
+          </div>
         </div>
       </div>
       
@@ -1246,6 +1253,7 @@
     let globalHourlyChart = null;
     let globalWeeklyChart = null;
     let detailHourlyChart = null;
+    let detailWeeklyChart = null;
     
     // Color mappings
     const SEVERITY_COLORS = {
@@ -1871,8 +1879,9 @@
         violContainer.appendChild(row);
       });
       
-      // Local Chart: Hourly Trend for Hotspot
+      // Local Charts: Hourly & Weekly Trends for Hotspot
       renderHotspotHourlyChart(h);
+      renderHotspotWeeklyChart(h);
     }
     
     function renderHotspotHourlyChart(h) {
@@ -1914,6 +1923,61 @@
             y: {
               grid: { color: 'rgba(255,255,255,0.04)' },
               ticks: { color: '#9ca3af', font: { size: 9 } }
+            }
+          }
+        }
+      });
+    }
+    
+    function renderHotspotWeeklyChart(h) {
+      const ctx = document.getElementById('detail-weekly-chart').getContext('2d');
+      if (detailWeeklyChart) detailWeeklyChart.destroy();
+      
+      const dow = h.daily_distribution || {};
+      const order = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
+      const counts = order.map(day => dow[day] || 0);
+      
+      const color = SEVERITY_COLORS[h.severity];
+      
+      // Determine HSL values or RGBA values based on severity color
+      let baseRgba = '99, 102, 241'; // default low/medium/high/critical
+      if (h.severity === 'CRITICAL') {
+        baseRgba = '239, 68, 68';
+      } else if (h.severity === 'HIGH') {
+        baseRgba = '249, 115, 22';
+      } else if (h.severity === 'MEDIUM') {
+        baseRgba = '234, 179, 8';
+      } else if (h.severity === 'LOW') {
+        baseRgba = '6, 182, 212';
+      }
+      
+      detailWeeklyChart = new Chart(ctx, {
+        type: 'bar',
+        data: {
+          labels: order.map(d => d.slice(0, 3)),
+          datasets: [{
+            label: 'Violations',
+            data: counts,
+            backgroundColor: `rgba(${baseRgba}, 0.25)`,
+            borderColor: color,
+            borderWidth: 1.5,
+            borderRadius: 4
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: { display: false }
+          },
+          scales: {
+            x: {
+              grid: { display: false },
+              ticks: { color: '#9ca3af', font: { size: 9 } }
+            },
+            y: {
+              grid: { color: 'rgba(255,255,255,0.04)' },
+              ticks: { color: '#9ca3af', font: { size: 9 }, stepSize: 1 }
             }
           }
         }
