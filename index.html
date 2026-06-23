@@ -757,6 +757,52 @@
       display: none;
     }
     
+    /* ── Loading Spinner ────────────────────────────────────────────────────── */
+    .map-loader {
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(3, 7, 18, 0.85);
+      backdrop-filter: blur(4px);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      z-index: 1000;
+      border-radius: 0;
+    }
+    
+    .map-loader.visible {
+      display: flex;
+    }
+    
+    .spinner-content {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 1rem;
+    }
+    
+    .spinner {
+      width: 48px;
+      height: 48px;
+      border: 3px solid rgba(99, 102, 241, 0.2);
+      border-top: 3px solid #6366f1;
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+    }
+    
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+    
+    .spinner-text {
+      font-size: 0.875rem;
+      color: var(--text-secondary);
+      font-weight: 500;
+    }
+    
     .chart-container {
       position: relative;
       width: 100%;
@@ -920,6 +966,12 @@
     <!-- MIDDLE: Leaflet Map -->
     <section class="map-container">
       <div id="map"></div>
+      <div id="map-loader" class="map-loader">
+        <div class="spinner-content">
+          <div class="spinner"></div>
+          <div class="spinner-text">Rendering map data...</div>
+        </div>
+      </div>
     </section>
 
     <!-- RIGHT SIDEBAR: Details Panel (Global stats or specific hotspot details) -->
@@ -1312,6 +1364,9 @@
     function filterAndRender() {
       if (!globalData) return;
       
+      // Show loading spinner
+      showLoader();
+      
       const searchQuery = document.getElementById("search-input").value.toLowerCase().trim();
       const stationFilter = document.getElementById("station-filter").value;
       
@@ -1337,10 +1392,15 @@
       // Update severity badge counts
       updateBadgeCounts(searchQuery, stationFilter);
       
-      // Render
+      // Render (use setTimeout to allow UI to show loader)
       document.getElementById("list-count").textContent = `${filteredHotspots.length} Zones`;
       renderHotspotList();
-      updateMapLayers();
+      
+      // Defer map rendering slightly to ensure loader displays
+      setTimeout(() => {
+        updateMapLayers();
+        hideLoader();
+      }, 50);
     }
     
     function updateBadgeCounts(searchQuery, stationFilter) {
@@ -1416,6 +1476,21 @@
         card.addEventListener("click", () => selectHotspot(h));
         container.appendChild(card);
       });
+    }
+    
+    // ── Loader Management ───────────────────────────────────────────────────
+    function showLoader() {
+      const loader = document.getElementById("map-loader");
+      if (loader) {
+        loader.classList.add("visible");
+      }
+    }
+    
+    function hideLoader() {
+      const loader = document.getElementById("map-loader");
+      if (loader) {
+        loader.classList.remove("visible");
+      }
     }
     
     // ── Map Update Logic ────────────────────────────────────────────────────
