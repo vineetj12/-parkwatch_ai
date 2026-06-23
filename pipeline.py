@@ -15,7 +15,7 @@ from pathlib import Path
 
 import numpy as np
 import pandas as pd
-from sklearn.cluster import DBSCAN
+from sklearn.cluster import DBSCAN, MiniBatchKMeans
 from sklearn.preprocessing import MinMaxScaler
 
 warnings.filterwarnings("ignore")
@@ -151,21 +151,18 @@ df_park = df_park[
 
 print(f"  Parking violations (Bengaluru bbox): {len(df_park):,}")
 
-# ── Step 2: DBSCAN Spatial Clustering ────────────────────────────────────────
+# ── Step 2: MiniBatchKMeans Spatial Clustering ────────────────────────────────────────
 
-print("Running DBSCAN spatial clustering ...")
-coords_rad = np.radians(df_park[["latitude", "longitude"]].values)
-eps_rad = (CLUSTER_EPS_M / 1000) / EARTH_RADIUS_KM   # convert metres → radians
+print("Running MiniBatchKMeans spatial clustering ...")
+coords = df_park[["latitude", "longitude"]].values
+kmeans = MiniBatchKMeans(n_clusters=200, random_state=42, batch_size=2048)
+df_park["cluster"] = kmeans.fit_predict(coords)
 
-db = DBSCAN(eps=eps_rad, min_samples=CLUSTER_MIN_SAMPLES, algorithm="ball_tree", metric="haversine")
-df_park["cluster"] = db.fit_predict(coords_rad)
+n_clusters = df_park["cluster"].nunique()
+n_noise = 0
+print(f"  Clusters found: {n_clusters}")
 
-n_clusters = df_park["cluster"].nunique() - (1 if -1 in df_park["cluster"].values else 0)
-n_noise = (df_park["cluster"] == -1).sum()
-print(f"  Clusters found: {n_clusters} | Noise points: {n_noise:,}")
-
-# Keep only clustered points (drop noise label -1)
-df_clustered = df_park[df_park["cluster"] != -1].copy()
+df_clustered = df_park.copy()
 
 # ── Step 3: Compute Cluster-Level Features ────────────────────────────────────
 
@@ -195,7 +192,8 @@ for cid, grp in df_clustered.groupby("cluster"):
         grp["latitude"].values,
         grp["longitude"].values
     )
-    radius_km = max(float(distances_km.max()), 0.05)  # floor at 50m
+    # Use 90th percentile distance to represent the core hotspot area and prevent outlier stretching
+    radius_km = max(float(np.percentile(distances_km, 90)), 0.05)
     area_km2 = math.pi * radius_km ** 2
     density = n / area_km2
 
